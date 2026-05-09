@@ -1,0 +1,11 @@
+*.ll
+*.bc
+build/
+cnpy_build
+host-cpu
+host-gpu
+out_open.interm
+out.mztab
+output.txt
+.vscode
+tmp

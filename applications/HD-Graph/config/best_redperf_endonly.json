@@ -1,0 +1,11 @@
+{
+    "Z11search_nodeIL+llvm.hpvm.hdc.cossim+1+hmhv+RedPerfBase": 0.0,
+    "Z11search_nodeIL+llvm.hpvm.hdc.cossim+1+hmhv+RedPerfStride": 1,
+    "Z11search_nodeIL+llvm.hpvm.hdc.cossim+1+hmhv+RedPerfExtent": 0.6748316260285796,
+    "GLOBAL_EncodingDim": 128,
+    "CUSTOM+TRAIN_ITERATIONS": 0,
+    "CUSTOM+HAMMING_DIST": 2,
+    "CUSTOM+BINARIZE": 0,
+    "CUSTOM+RHO_SHIFT": 2,
+    "CUSTOM+POLARIZE": 1
+}

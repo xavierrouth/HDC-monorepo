@@ -1,0 +1,18 @@
+{
+    "Z16rp_encoding_nodeIL+llvm.hpvm.hdc.matmul+0+hmhv+RedPerfBase": 0.0,
+    "Z16rp_encoding_nodeIL+llvm.hpvm.hdc.matmul+0+hmhv+RedPerfStride": 1,
+    "Z16rp_encoding_nodeIL+llvm.hpvm.hdc.matmul+0+hmhv+RedPerfExtent": 1.0,
+    "Z21rp_encoding_node_iterIL+llvm.hpvm.hdc.matmul+0+hmhv+RedPerfBase": 0.0,
+    "Z21rp_encoding_node_iterIL+llvm.hpvm.hdc.matmul+0+hmhv+RedPerfStride": 1,
+    "Z21rp_encoding_node_iterIL+llvm.hpvm.hdc.matmul+0+hmhv+RedPerfExtent": 1.0,
+    "Z15clustering_nodeIL+llvm.hpvm.hdc.cossim+0+hmhv+RedPerfBase": 0.0,
+    "Z15clustering_nodeIL+llvm.hpvm.hdc.cossim+0+hmhv+RedPerfStride": 1,
+    "Z15clustering_nodeIL+llvm.hpvm.hdc.cossim+0+hmhv+RedPerfExtent": 1.0,
+    "Z15clustering_nodeIL+llvm.hpvm.hdc.hamming.distance+0+hmhv+RedPerfBase": 0.0,
+    "Z15clustering_nodeIL+llvm.hpvm.hdc.hamming.distance+0+hmhv+RedPerfStride": 1,
+    "Z15clustering_nodeIL+llvm.hpvm.hdc.hamming.distance+0+hmhv+RedPerfExtent": 1.0,
+    "GLOBAL_EncodingDim": 1024,
+    "CUSTOM+TRAIN_ITERATIONS": 20,
+    "CUSTOM+DATA_TYPE": 1,
+    "CUSTOM+HAMMING_DIST": 0
+}

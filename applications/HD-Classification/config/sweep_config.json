@@ -1,0 +1,10 @@
+{
+  "Z18training_root_nodeIL+llvm.hpvm.hdc.cossim+2+hmhv+RedPerfBase": 0.5,
+  "Z18training_root_nodeIL+llvm.hpvm.hdc.cossim+2+hmhv+RedPerfStride": 0.0001,
+  "Z18training_root_nodeIL+llvm.hpvm.hdc.cossim+2+hmhv+RedPerfExtent": 1.0,
+  "Z14inference_nodeIL+llvm.hpvm.hdc.cossim+2+hmhv+RedPerfBase": 0.5,
+  "Z14inference_nodeIL+llvm.hpvm.hdc.cossim+2+hmhv+RedPerfStride": 0.0001,
+  "Z14inference_nodeIL+llvm.hpvm.hdc.cossim+2+hmhv+RedPerfExtent": 1.0,
+  "GLOBAL_EncodingDim": 512,
+  "CUSTOM+TRAIN_ITERATIONS": 5
+}

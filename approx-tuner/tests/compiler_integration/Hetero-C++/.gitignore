@@ -1,0 +1,7 @@
+host-*
+*.aoco
+*.temp
+dump*
+out.*
+build/*.ll
+build/*.o

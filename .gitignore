@@ -1,0 +1,33 @@
+*.db
+*.db-journal
+approx-tuner/venv/
+approx-tuner/opentuner.db/
+datasets/classification/mnist_trainX.bin
+datasets/classification/X_train.csv
+datasets/classification/X_test.csv
+datasets/clustering/mnist_testX.bin
+applications/HD-Sim-Classification/data/MNIST/
+*.md
+misc
+
+# Runtime output files
+**/stats.txt
+**/test_accuracy.txt
+**/test_time.txt
+**/config_in.json
+**/opentuner_final_config.json
+**/opentuner.log
+applications/HD-Classification/out
+applications/HD-Classification/output/
+results/attachments/
+
+# Large data / binary files
+*.fastq
+datasets/classification/ucihar_*.bin
+
+# Dev artifacts
+.claude/
+writing/
+**/__pycache__/
+HD-Graph-original/
+MicroHD/

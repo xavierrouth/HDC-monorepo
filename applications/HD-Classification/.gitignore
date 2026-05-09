@@ -1,0 +1,10 @@
+host-*
+*.aoco
+*.temp
+dump*
+out.*
+build/*.ll
+build/*.o
+__pycache__
+build/*.cl
+build/*

@@ -1,0 +1,20 @@
+# Existing entries
+*.log
+*.env
+
+hdc_approximation_tuner.egg-info/
+build/
+dist/
+venv/
+opentuner.db/
+
+# Ignore .pyc files
+*.pyc
+
+# Ignore object and library files
+*.o
+*.a
+
+# Ignore __pycache__ directories (where Python stores compiled files)
+__pycache__/
+

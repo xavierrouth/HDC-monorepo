@@ -1,0 +1,1 @@
+[{"arg_types":["<1024 x float>","<1024 x float>"],"intrinsic":"llvm.hpvm.hdc.cossim","number":2,"op_type":"hmhv","parent_func":"Z13training_nodeIL","ret_type":"float"},{"arg_types":["<1024 x float>","<1024 x float>"],"intrinsic":"llvm.hpvm.hdc.cossim","number":2,"op_type":"hmhv","parent_func":"Z14inference_nodeIL","ret_type":"float"}]

@@ -1,0 +1,13 @@
+{
+  "CUSTOM+DATA_TYPE": "float",
+  "CUSTOM+HAMMING_DIST": 1,
+  "CUSTOM+BINARIZE_ENCODING": 1,
+  "CUSTOM+TRAIN_ITERATIONS": 5,
+  "GLOBAL_EncodingDim": 512,
+  "Z18training_root_nodeIL+llvm.hpvm.hdc.cossim+2+hmhv+RedPerfBase": 0.0,
+  "Z18training_root_nodeIL+llvm.hpvm.hdc.cossim+2+hmhv+RedPerfExtent": 1.0,
+  "Z18training_root_nodeIL+llvm.hpvm.hdc.cossim+2+hmhv+RedPerfStride": 0.0001,
+  "Z14inference_nodeIL+llvm.hpvm.hdc.cossim+2+hmhv+RedPerfBase": 0.0,
+  "Z14inference_nodeIL+llvm.hpvm.hdc.cossim+2+hmhv+RedPerfExtent": 1.0,
+  "Z14inference_nodeIL+llvm.hpvm.hdc.cossim+2+hmhv+RedPerfStride": 0.0001
+}

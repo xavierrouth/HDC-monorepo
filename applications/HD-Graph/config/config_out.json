@@ -1,0 +1,1 @@
+[{"arg_types":["<4096 x float>","<4096 x float>"],"intrinsic":"llvm.hpvm.hdc.cossim","number":1,"op_type":"hmhv","parent_func":"Z11search_nodeIL","ret_type":"float"}]

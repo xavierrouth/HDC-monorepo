@@ -1,0 +1,6 @@
+{'Z11search_nodeIL+llvm.hpvm.hdc.hamming.distance+3+hmhv+RedPerfStride': 0.21929131745911637,
+ 'Z11search_nodeIL+llvm.hpvm.hdc.hamming.distance+3+hmhv+RedPerfExtent': 1.0,
+ 'GLOBAL_EncodingDim': 64,
+ 'Z11search_nodeIL+llvm.hpvm.hdc.hamming.distance+3+hmhv+ALGChoice': <HDCOperation.HDCCosineSimilarity: 3>,
+ 'Z11search_nodeIL+llvm.hpvm.hdc.hamming.distance+3+hmhv+RedPerfBase': 0.0
+}

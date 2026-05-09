@@ -1,0 +1,28 @@
+Pending uncommitted changes (2026-04-09)
+========================================
+
+1. results/scripts/eval_redperf.py
+   - Added collect_approx_make_vars for HD-Classification so
+     regenerate_config_out() runs before each series condition.
+     Previously [] caused all 4 conditions to share the same
+     config_out.json (2 ops), making redperf ON and redperf ON+hint
+     indistinguishable (both 10^{48}).
+     With the fix:
+       hint=OFF conditions → 4 ops (matmul+cossim), space ~10^{92}
+       hint=ON conditions  → 2 ops (cossim only),   space ~10^{48}/10^{41}
+   - Added HPVM_BUILD=release to the same make_vars so collect-approx
+     uses build-release/.
+
+2. applications/HD-Classification/autotune.py
+   - Added "HPVM_BUILD=release" to make_cmd in eval_config() so each
+     autotune iteration compiles via build-release/ instead of build/.
+
+Search spaces after fix (CPU, ISOLET, D=2048):
+  redperf ON (hint=OFF, 4 ops)          10^{92.15}
+  redperf end-only +hint (hint=ON, 2 ops) 10^{41.41}
+  redperf OFF (hint=OFF, 4 ops, no redperf) 10^{2.88}
+  redperf ON +hint (hint=ON, 2 ops)     10^{48.03}
+
+Active run: PID 2194018
+  Log: results/eval_classification_cpu_20260409_162600.log
+  --app classification --device cpu --stop-after 18000

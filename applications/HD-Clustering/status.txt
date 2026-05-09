@@ -1,0 +1,62 @@
+HD-Clustering Status
+====================
+Last updated: 2026-02-23
+
+== Datasets ==
+
+ISOLET (WORKS)
+  - 6238 samples, 617 features (padded to 624), 26 clusters
+  - Format: custom binary (int32 array)
+  - Paths: ../../datasets/clustering/isolet_train_trainX.bin / isolet_train_trainY.bin
+
+MNIST (NOT IMPLEMENTED)
+  - Headers present (mnist_reader.hpp, mnist_reader_common.hpp)
+  - Code gated behind #ifdef MNIST, currently disabled
+
+UCI HAR (NOT IMPLEMENTED)
+  - Mentioned in host.h comments (e.g., padded features: 568)
+  - No active code path
+
+== Knobs ==
+
+ENCODING_DIM    [default: 1024]  Hypervector dimensionality. Powers of 2 (128–2048).
+DATA_TYPE       [default: int]   Element type: "int" or "float".
+HAMMING_DIST    [default: 1]     Distance metric: 0 = cosine similarity, 1 = Hamming (bipolar).
+TRAIN_ITERATIONS                 Number of training epochs (configurable via config JSON).
+RedPerfBase/Stride/Extent        Reduction perforation knobs for the Hamming distance intrinsic.
+ALGChoice                        Algorithm selection knob (3 choices) for distance computation.
+
+== Configuration Test Results (2026-02-15, ISOLET, CPU, 10 epochs) ==
+
+  DATA_TYPE=int,   HAMMING_DIST=0 (cosine):  accuracy 66.77%,  time ~25s   [WORKS]
+  DATA_TYPE=int,   HAMMING_DIST=1 (hamming): CRASHES during compilation/execution
+  DATA_TYPE=float, HAMMING_DIST=0 (cosine):  accuracy 66.77%,  time ~67s   [WORKS]
+  DATA_TYPE=float, HAMMING_DIST=1 (hamming): accuracy 71.17%,  time ~72s   [WORKS]
+
+Best accuracy: float + Hamming (71.17%)
+
+== Known Issues ==
+
+1. int + HAMMING_DIST=1 crashes. Bipolar Hamming path may be incompatible with integer HVs.
+
+2. FIXME in src/DFG.hpp (clustering_node):
+     *scores_ptr = __hetero_hdc_cossim<K, D, hvtype>(encoded_hv, clusters);
+     // FIXME: This probably doesn't work, also why are there still ifdef ACCEL here???
+   The cosine similarity path is suspected broken (though integer cosine results look correct).
+
+3. GPU targets: compile but GPU power monitoring reports 0 W (GPU unavailable in test env).
+   GPU correctness not verified.
+
+4. OpenTuner autotuning (autotune.py) works on CPU. Best tuned config found:
+     EncodingDim=1024, DATA_TYPE=int, HAMMING_DIST=0, TRAIN_ITERATIONS=7,
+     RedPerfExtent=0.666, ALGChoice=3
+
+== Build Targets ==
+
+  host-cpu         Standard CPU build
+  host-cpu-approx  CPU build with approximation knobs enabled
+  host-gpu         GPU build
+  host-gpu-approx  GPU build with approximation knobs enabled
+  host-sim / host-accel  Simulator / accelerator variants
+
+Usage: ./host-cpu-approx <EPOCHS> <X_path> <Y_path>

@@ -1,0 +1,9 @@
+{
+    "GLOBAL_EncodingDim": 8192,
+    "CUSTOM+STRIDE": 0,
+    "CUSTOM+END": 1.0,
+    "CUSTOM+KMERS_PER_HV": 400,
+    "CUSTOM+THRESHOLD_MULT": 0.9,
+    "CUSTOM+DATA_TYPE": 1,
+    "CUSTOM+BINARIZE_BUCKETS": 0
+}

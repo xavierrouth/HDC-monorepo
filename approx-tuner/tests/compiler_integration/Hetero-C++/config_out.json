@@ -1,0 +1,1 @@
+[{"arg_types":["<8 x float>","<10 x 8 x float>"],"intrinsic":"llvm.hpvm.hdc.cossim","number":0,"op_type":"hmhv","parent_func":"Z4nodePu11matrix_typeIL","ret_type":"<10 x float>"}]

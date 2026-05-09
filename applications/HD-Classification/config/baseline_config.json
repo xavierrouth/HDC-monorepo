@@ -1,0 +1,18 @@
+{
+    "Z18encoding_dfg_trainIL+llvm.hpvm.hdc.matmul+0+hmhv+RedPerfBase": 0.0,
+    "Z18encoding_dfg_trainIL+llvm.hpvm.hdc.matmul+0+hmhv+RedPerfStride": 1,
+    "Z18encoding_dfg_trainIL+llvm.hpvm.hdc.matmul+0+hmhv+RedPerfExtent": 1.0,
+    "Z18encoding_dfg_inferIL+llvm.hpvm.hdc.matmul+0+hmhv+RedPerfBase": 0.0,
+    "Z18encoding_dfg_inferIL+llvm.hpvm.hdc.matmul+0+hmhv+RedPerfStride": 1,
+    "Z18encoding_dfg_inferIL+llvm.hpvm.hdc.matmul+0+hmhv+RedPerfExtent": 1.0,
+    "Z18training_root_nodeIL+llvm.hpvm.hdc.cossim+0+hmhv+RedPerfBase": 0.0,
+    "Z18training_root_nodeIL+llvm.hpvm.hdc.cossim+0+hmhv+RedPerfStride": 1,
+    "Z18training_root_nodeIL+llvm.hpvm.hdc.cossim+0+hmhv+RedPerfExtent": 1.0,
+    "Z14inference_nodeIL+llvm.hpvm.hdc.cossim+0+hmhv+RedPerfBase": 0.0,
+    "Z14inference_nodeIL+llvm.hpvm.hdc.cossim+0+hmhv+RedPerfStride": 1,
+    "Z14inference_nodeIL+llvm.hpvm.hdc.cossim+0+hmhv+RedPerfExtent": 1.0,
+    "GLOBAL_EncodingDim": 2048,
+    "CUSTOM+TRAIN_ITERATIONS": 10,
+    "CUSTOM+HAMMING_DIST": 0,
+    "CUSTOM+DATA_TYPE": 1
+}

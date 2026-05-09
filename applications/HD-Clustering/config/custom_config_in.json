@@ -1,0 +1,9 @@
+{
+  "CUSTOM+DATA_TYPE": 0,
+  "CUSTOM+HAMMING_DIST": 0,
+  "CUSTOM+TRAIN_ITERATIONS": 10,
+  "GLOBAL_EncodingDim": 1024,
+  "Z15clustering_nodeIL+llvm.hpvm.hdc.hamming.distance+0+hmhv+RedPerfBase": 0.0,
+  "Z15clustering_nodeIL+llvm.hpvm.hdc.hamming.distance+0+hmhv+RedPerfExtent": 1.0,
+  "Z15clustering_nodeIL+llvm.hpvm.hdc.hamming.distance+0+hmhv+RedPerfStride": 0.0001
+}

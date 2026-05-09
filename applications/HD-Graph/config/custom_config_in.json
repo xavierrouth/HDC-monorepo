@@ -1,0 +1,6 @@
+{
+  "CUSTOM+DATA_TYPE": "float",
+  "CUSTOM+HAMMING_DIST": 1,
+  "CUSTOM+BINARIZE": 1,
+  "GLOBAL_EncodingDim": 4096
+}

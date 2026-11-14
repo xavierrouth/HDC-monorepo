@@ -13,7 +13,29 @@
 #ifndef BINARIZE_ENCODING
 #define BINARIZE_ENCODING 1
 #endif
+
+// Element type of the encoding/training representation region.
 typedef DATA_TYPE hvtype;
+
+// Element type of the inference representation region. Defaults to the
+// training type, in which case the two regions coincide and no conversion is
+// emitted at all (INFER_NEEDS_CAST below is 0 and the cast node compiles away).
+// Setting it independently expresses the float-training / low-precision-
+// inference pattern: the boundary is a single compile-time conversion placed
+// at a fixed program point, not a run-time reconfiguration.
+#ifndef INFER_DATA_TYPE
+#define INFER_DATA_TYPE DATA_TYPE
+#endif
+typedef INFER_DATA_TYPE hvtype_infer;
+
+// Set to 1 by the build system when INFER_DATA_TYPE differs from DATA_TYPE.
+// This must be a preprocessor condition rather than a C++ type comparison:
+// the conversion node has to be genuinely absent when the regions coincide,
+// otherwise a dead branch would still emit HDC intrinsics and perturb the
+// per-function op numbering the approximation config depends on.
+#ifndef INFER_NEEDS_CAST
+#define INFER_NEEDS_CAST 0
+#endif
 
 
 // RANDOM PROJECTION ENCODING!!
@@ -233,25 +255,30 @@ void training_root_node( /* Input buffers: 2*/
     __hypervector__<D, hvtype>* encoded_hv_ptr, size_t encoded_hv_size, 
     __hypervector__<K, hvtype>* scores_ptr, size_t scores_size, 
     __hypervector__<K, hvtype>* norms_ptr, size_t norms_size, 
-    __hypervector__<D, hvtype>* update_hv_ptr, size_t update_hv_size,  
+    __hypervector__<D, hvtype>* update_hv_ptr, size_t update_hv_size,
+    // Scratch for binarizing hamming operands (HAMMING_DIST == 1)
+    __hypervector__<D, hvtype>* sign_q_ptr, size_t sign_q_size,
+    __hypervector__<D, hvtype>* sign_c_ptr, size_t sign_c_size,
     // Classes
-     /* Output Buffers: 1 (Classes)*/ 
+     /* Output Buffers: 1 (Classes)*/
      __hypermatrix__<K, D, hvtype>* classes_ptr, size_t classes_size
 
     ){
     void* root_section = __hetero_section_begin();
 
-    void* root_task = __hetero_task_begin( /* Input Buffers: 3 */ 
-        7,  
+    void* root_task = __hetero_task_begin( /* Input Buffers: 9 */
+        9,
         encoded_hvs_ptr, encoded_hvs_size,
-        classes_ptr, classes_size, 
+        classes_ptr, classes_size,
         labels, labels_size,
-        encoded_hv_ptr, encoded_hv_size,  
-        scores_ptr, scores_size, 
-        norms_ptr, norms_size, 
-        update_hv_ptr, update_hv_size, 
-        
-        /* Output Buffers: 1 */ 1,  
+        encoded_hv_ptr, encoded_hv_size,
+        scores_ptr, scores_size,
+        norms_ptr, norms_size,
+        update_hv_ptr, update_hv_size,
+        sign_q_ptr, sign_q_size,
+        sign_c_ptr, sign_c_size,
+
+        /* Output Buffers: 1 */ 1,
         classes_ptr, classes_size, "root_task"   );
     
     for (int i = 0; i < N_VEC; i++) {
@@ -282,19 +309,27 @@ void training_root_node( /* Input buffers: 2*/
             }
         }
         #else
+        // Hamming distance is only meaningful between binarized (+1/-1)
+        // operands. The encoded query and the class hypervectors are both
+        // float accumulations here, so sign() them first -- without this every
+        // pair mismatches on essentially every element, all K classes tie, and
+        // the argmin degenerates to class 0. __hetero_hdc_sign cannot run in
+        // place, so the results go to scratch buffers.
+        *sign_q_ptr = __hetero_hdc_sign<D, hvtype>(*encoded_hv_ptr);
         int max_index = 0;
         int min_score = 9999999;
         for (int i = 0; i < K; i++) {
             auto& class_hv = *reinterpret_cast<__hypervector__<D, hvtype>*>(
                 reinterpret_cast<hvtype*>(classes_ptr) + i * D);
-            int score = __hetero_hdc_hamming_distance<D, hvtype>(*encoded_hv_ptr, class_hv);
+            *sign_c_ptr = __hetero_hdc_sign<D, hvtype>(class_hv);
+            int score = __hetero_hdc_hamming_distance<D, hvtype>(*sign_q_ptr, *sign_c_ptr);
             if (score < min_score) {
                 min_score = score;
                 max_index = i;
             }
         }
         #endif
-        
+
 
         // #if HAMMING_DIST == 1
         //     // For hamming distance take the smallest value
@@ -326,49 +361,99 @@ void training_root_node( /* Input buffers: 2*/
     return;
 }
 
+#if INFER_NEEDS_CAST
+// Representation-region boundary.
+//
+// The encoding/training region computes in `hvtype`; the inference region
+// computes in `hvtype_infer`. This node is the single conversion between them:
+// it is placed at a fixed program point, chosen at compile time, and runs once
+// per hypermatrix. There is no run-time reconfiguration -- a configuration that
+// mixed the two representations within a region is not rejected at search time,
+// it is unrepresentable, because each region declares exactly one element type.
+//
+// Compiled out entirely when the two regions share an element type.
+template<int M, int D>
+void cast_region_node(
+    __hypermatrix__<M, D, hvtype>*       src_ptr, size_t src_size,
+    __hypervector__<D, hvtype>*          row_ptr, size_t row_size,
+    __hypermatrix__<M, D, hvtype_infer>* dst_ptr, size_t dst_size)
+{
+    void* section = __hetero_section_begin();
+
+    void* task = __hetero_task_begin(
+        3,
+        src_ptr, src_size,
+        row_ptr, row_size,
+        dst_ptr, dst_size,
+        1,
+        dst_ptr, dst_size, "cast_region_task");
+
+    for (int i = 0; i < M; i++) {
+        *row_ptr = *reinterpret_cast<__hypervector__<D, hvtype>*>(
+            reinterpret_cast<hvtype*>(src_ptr) + i * D);
+        __hypervector__<D, hvtype_infer> casted =
+            __hetero_hdc_type_cast<D, hvtype, hvtype_infer>(*row_ptr);
+        __hetero_hdc_set_matrix_row<M, D, hvtype_infer>(*dst_ptr, casted, i);
+    }
+
+    __hetero_task_end(task);
+    __hetero_section_end(section);
+    return;
+}
+#endif
+
 /* Just make guesses based on cossim  */
 template<int D, int K, int N_VEC>
 void inference_node(
-    __hypermatrix__<N_VEC, D, hvtype>* encoded_hv_ptr, size_t encoded_hv_size, 
-    __hypermatrix__<K, D, hvtype>* classes_ptr, size_t classes_size, 
-    __hypervector__<K, hvtype>* scores_ptr, size_t scores_size, 
-    __hypervector__<K, hvtype>* norms_ptr, size_t norms_size, 
-    int* label_ptr, size_t label_size ) {   
+    __hypermatrix__<N_VEC, D, hvtype_infer>* encoded_hv_ptr, size_t encoded_hv_size,
+    __hypermatrix__<K, D, hvtype_infer>* classes_ptr, size_t classes_size,
+    __hypervector__<K, hvtype_infer>* scores_ptr, size_t scores_size,
+    __hypervector__<K, hvtype_infer>* norms_ptr, size_t norms_size,
+    // Scratch for binarizing hamming operands (HAMMING_DIST == 1)
+    __hypervector__<D, hvtype_infer>* sign_q_ptr, size_t sign_q_size,
+    __hypervector__<D, hvtype_infer>* sign_c_ptr, size_t sign_c_size,
+    int* label_ptr, size_t label_size ) {
     // Read classes hvs from host.
 
      void* section = __hetero_section_begin();
 
-    void* task1 = __hetero_task_begin( /* Input Buffers: */ 5, encoded_hv_ptr, encoded_hv_size, 
-        classes_ptr, classes_size, 
-        scores_ptr, scores_size, 
-        norms_ptr, norms_size, 
-        label_ptr, label_size,  
-        /* Output Buffers: */ 1, 
+    void* task1 = __hetero_task_begin( /* Input Buffers: */ 7, encoded_hv_ptr, encoded_hv_size,
+        classes_ptr, classes_size,
+        scores_ptr, scores_size,
+        norms_ptr, norms_size,
+        sign_q_ptr, sign_q_size,
+        sign_c_ptr, sign_c_size,
+        label_ptr, label_size,
+        /* Output Buffers: */ 1,
         label_ptr, label_size, "inference_task" );
     __hetero_hint(DEVICE);
     
     for (int i = 0; i < N_VEC; i++) {
-        auto& row = *reinterpret_cast<__hypervector__<D, hvtype>*>(
-            reinterpret_cast<hvtype*>(encoded_hv_ptr) + i * D);
+        auto& row = *reinterpret_cast<__hypervector__<D, hvtype_infer>*>(
+            reinterpret_cast<hvtype_infer*>(encoded_hv_ptr) + i * D);
         #if HAMMING_DIST != 1
         float max_score = -9999999.0;
         int max_index = -1;
         for (int i = 0; i < K; i++) {
-            auto& class_hv = *reinterpret_cast<__hypervector__<D, hvtype>*>(
-                reinterpret_cast<hvtype*>(classes_ptr) + i * D);
-            float score = __hetero_hdc_cossim<D, hvtype>(row, class_hv);
+            auto& class_hv = *reinterpret_cast<__hypervector__<D, hvtype_infer>*>(
+                reinterpret_cast<hvtype_infer*>(classes_ptr) + i * D);
+            float score = __hetero_hdc_cossim<D, hvtype_infer>(row, class_hv);
             if (score > max_score) {
                 max_score = score;
                 max_index = i;
             }
         }
         #else
+        // See training_root_node: hamming distance requires binarized (+1/-1)
+        // operands, and __hetero_hdc_sign cannot run in place.
+        *sign_q_ptr = __hetero_hdc_sign<D, hvtype_infer>(row);
         int max_index = 0;
         int min_score = 9999999;
         for (int i = 0; i < K; i++) {
-            auto& class_hv = *reinterpret_cast<__hypervector__<D, hvtype>*>(
-                reinterpret_cast<hvtype*>(classes_ptr) + i * D);
-            int score = __hetero_hdc_hamming_distance<D, hvtype>(row, class_hv);
+            auto& class_hv = *reinterpret_cast<__hypervector__<D, hvtype_infer>*>(
+                reinterpret_cast<hvtype_infer*>(classes_ptr) + i * D);
+            *sign_c_ptr = __hetero_hdc_sign<D, hvtype_infer>(class_hv);
+            int score = __hetero_hdc_hamming_distance<D, hvtype_infer>(*sign_q_ptr, *sign_c_ptr);
             if (score < min_score) {
                 min_score = score;
                 max_index = i;

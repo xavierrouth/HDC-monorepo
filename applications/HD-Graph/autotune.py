@@ -15,6 +15,18 @@ from gpu_power import *
 
 root_dir_str = "/home/xrouth2/hdc/HDC-monorepo/applications/HD-Graph"
 config_out_path = root_dir_str + "/config/config_out.json"
+
+# All element-type representations the backend can be asked for. Types that
+# miscompile or score poorly are deliberately left IN the space: the tuner
+# evaluates them, a failed build returns the penalty result and a low-quality
+# one is rejected by the QoS constraint, so "this type is a poor choice here"
+# is a search outcome rather than a hand-coded exclusion.
+#
+# Measured on HD-Classification/ISOLET: int8_t and int16_t return chance
+# accuracy (too few bits to absorb the encoding accumulation); int32_t, int64_t,
+# float and double all work. On HD-HashTable int16_t and double fail to build.
+DATA_TYPES = ["int8_t", "int16_t", "int32_t", "int64_t", "float", "double"]
+FLOAT_TYPES = {"float", "double"}
 config_in_path =   root_dir_str + "/config/config_in.json"
 
 # Global variables set by command-line arguments
@@ -74,9 +86,9 @@ def get_apx_descs(enable_redperf=True, enable_algchoice=True, redperf_end_only=F
         ApproxCustomInteger("POLARIZE", 2)
     )
 
-    # apx_descs.append(
-    #     ApproxCustomInteger("DATA_TYPE", 2)
-    # )
+    apx_descs.append(
+        ApproxCustomInteger("DATA_TYPE", len(DATA_TYPES) - 1)
+    )
 
     return apx_descs
 def eval_config(cfg):
@@ -93,6 +105,10 @@ def eval_config(cfg):
 
     train_entry = next((item for item in pass_config_json if "TRAIN_ITERATIONS" in item), None)
     train_iterations = train_entry["TRAIN_ITERATIONS"] if train_entry else 1
+
+    data_type_entry = next((item for item in pass_config_json if "DATA_TYPE" in item), None)
+    data_type = DATA_TYPES[min(data_type_entry["DATA_TYPE"], len(DATA_TYPES) - 1)] \
+        if data_type_entry else "float"
 
     hamming_dist_entry = next((item for item in pass_config_json if "HAMMING_DIST" in item), None)
     hamming_dist = hamming_dist_entry["HAMMING_DIST"] if hamming_dist_entry else 1
@@ -119,8 +135,10 @@ def eval_config(cfg):
     make_cmd = ["make", f"--directory={root_dir_str}",
         make_target, "-B",
         "HPVM_BUILD=release",
+        "APPROX_CONFIG=1",  # this config is intentional; see util/check_approx_config.py
         f"ENCODING_DIM={dhv}",
         f"HAMMING_DIST={hamming_dist}",
+        f"DATA_TYPE={data_type}",
         f"BINARIZE={binarize}",
         f"RHO_SHIFT={rho_shift}",
         f"POLARIZE={polarize}"]

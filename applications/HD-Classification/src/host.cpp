@@ -97,9 +97,41 @@ std::vector<T> quantize(const std::vector<float>& data) {
         float max_abs = 0.0f;
         for (float v : data) max_abs = std::max(max_abs, std::abs(v));
         if (max_abs == 0.0f) max_abs = 1.0f;
-        // Divide by N_FEAT so the RP matmul (sum of N_FEAT products of ±1 × feature)
-        // stays within T's range and doesn't overflow during encoding.
-        float scale = ((float)std::numeric_limits<T>::max() / max_abs) / N_FEAT;
+        // Give the feature magnitude half of T's value bits and leave the rest
+        // as headroom for the encoding matmul, which sums N_FEAT products of
+        // (+/-1 x feature).
+        //
+        // This is an empirical setting, not a derived bound. The naive bound --
+        // budget ceil(log2(N_FEAT)) bits for the accumulation and give the rest
+        // to the feature -- was measured and is WRONG: it puts int32 features at
+        // 2^20, whose worst-case sum (617 * 2^20 = 6.5e8) sits comfortably under
+        // INT32_MAX, yet accuracy collapses to chance. int32 empirically needs
+        // ~100x headroom rather than the ~3x that bound predicts, so something
+        // in the lowered pipeline accumulates more aggressively than a single
+        // N_FEAT-term dot product. Until that is pinned down, use the half-bits
+        // split, which is measured good:
+        //
+        //   int32 (features 2^15): 0.871    int64 (features 2^31): 0.874
+        //   float:                 0.874    double:                0.874
+        //
+        // int8 and int16 return chance accuracy at every scale tried and are
+        // not usable for this application; 7 and 15 value bits cannot absorb a
+        // 617-term accumulation with any useful feature precision.
+        //
+        // The previous formula was max/max_abs/N_FEAT, which places the
+        // worst-case sum on exactly INT32_MAX with zero headroom and drove every
+        // integer configuration to chance (0.042 vs 0.874 for float).
+        //
+        // The previous formula was max/max_abs/N_FEAT, which places the
+        // worst-case sum on exactly INT32_MAX with zero headroom. It overflowed
+        // in practice and drove every DATA_TYPE=int configuration to chance
+        // accuracy (0.042, vs 0.874 for float): gen_rp_matrix builds projection
+        // rows by wrap-shifting one seed vector, so the rows are correlated and
+        // partial sums excurse much further than an independent-random model
+        // predicts. Measured: this formula restores int to 0.871.
+        const int value_bits = std::numeric_limits<T>::digits;  // excludes sign
+        const float feature_max = (float)(1ull << (value_bits / 2));
+        float scale = feature_max / max_abs;
         std::cout << "[DEBUG quantize] max_abs=" << max_abs
                   << " T_max=" << (int64_t)std::numeric_limits<T>::max()
                   << " scale=" << scale << std::endl;
@@ -302,6 +334,39 @@ int main(int argc, char** argv) {
 	__hypervector__<N_CLASS, hvtype> scores_buffer = __hetero_hdc_create_hypervector<N_CLASS, hvtype>(0, (void*) zero<hvtype>);
 	__hypervector__<N_CLASS, hvtype> norms_buffer = __hetero_hdc_create_hypervector<N_CLASS, hvtype>(0, (void*) zero<hvtype>);
 
+	// Scratch buffers used to hold binarized (+1/-1) copies of the query and
+	// class hypervectors when HAMMING_DIST == 1. __hetero_hdc_sign cannot be
+	// applied in place, so its results need somewhere to live. These live in
+	// the inference region, so they carry the inference element type.
+	size_t sign_hv_size = Dhv * sizeof(hvtype_infer);
+	__hypervector__<Dhv, hvtype_infer> sign_q_buffer = __hetero_hdc_create_hypervector<Dhv, hvtype_infer>(0, (void*) zero<hvtype_infer>);
+	__hypervector__<Dhv, hvtype_infer> sign_c_buffer = __hetero_hdc_create_hypervector<Dhv, hvtype_infer>(0, (void*) zero<hvtype_infer>);
+
+	// ---- Inference representation region -------------------------------
+	// When INFER_DATA_TYPE == DATA_TYPE these alias the training-region
+	// buffers and no conversion is emitted. Otherwise they are distinct
+	// storage, populated once by cast_region_node at the region boundary.
+	size_t scores_infer_size = N_CLASS * sizeof(hvtype_infer);
+	size_t norms_infer_size  = N_CLASS * sizeof(hvtype_infer);
+	__hypervector__<N_CLASS, hvtype_infer> scores_infer_buffer = __hetero_hdc_create_hypervector<N_CLASS, hvtype_infer>(0, (void*) zero<hvtype_infer>);
+	__hypervector__<N_CLASS, hvtype_infer> norms_infer_buffer  = __hetero_hdc_create_hypervector<N_CLASS, hvtype_infer>(0, (void*) zero<hvtype_infer>);
+
+#if INFER_NEEDS_CAST
+	size_t classes_infer_size          = N_CLASS * Dhv * sizeof(hvtype_infer);
+	size_t encoded_test_hvs_infer_size = N_TEST  * Dhv * sizeof(hvtype_infer);
+	size_t cast_row_size               = Dhv * sizeof(hvtype);
+
+	__hypermatrix__<N_CLASS, Dhv, hvtype_infer> classes_infer =
+		__hetero_hdc_create_hypermatrix<N_CLASS, Dhv, hvtype_infer>(0, (void*) zero<hvtype_infer>);
+	__hypermatrix__<N_TEST, Dhv, hvtype_infer> encoded_test_hvs_infer =
+		__hetero_hdc_create_hypermatrix<N_TEST, Dhv, hvtype_infer>(0, (void*) zero<hvtype_infer>);
+	__hypervector__<Dhv, hvtype> cast_row_buffer =
+		__hetero_hdc_create_hypervector<Dhv, hvtype>(0, (void*) zero<hvtype>);
+
+	auto classes_infer_handle          = __hetero_hdc_get_handle(classes_infer);
+	auto encoded_test_hvs_infer_handle = __hetero_hdc_get_handle(encoded_test_hvs_infer);
+#endif
+
 	__hypervector__<N_FEAT, hvtype> row_buffer = __hetero_hdc_create_hypervector<N_FEAT, hvtype>(0, (void*) zero<hvtype>);
 	size_t row_buffer_size = N_SAMPLE * sizeof(hvtype);
 	int inference_labels[N_TEST];
@@ -382,7 +447,7 @@ int main(int argc, char** argv) {
 		void* training_dag = __hetero_launch(
 			(void*) training_root_node<Dhv, N_CLASS, N_SAMPLE, N_FEAT>,
 			/* input buffers*/
-			7,
+			9,
 			encoded_train_hvs_handle,
 			encoded_train_hvs_size,
 			training_labels,
@@ -395,6 +460,10 @@ int main(int argc, char** argv) {
 			norms_size,
 			__hetero_hdc_get_handle(update_hv),
 			update_hv_size,
+			__hetero_hdc_get_handle(sign_q_buffer),
+			sign_hv_size,
+			__hetero_hdc_get_handle(sign_c_buffer),
+			sign_hv_size,
 			classes_handle,
 			classes_size,
 			/* output buffers*/
@@ -456,6 +525,35 @@ int main(int argc, char** argv) {
 	// #if HAMMING_DIST != 1
 	// l2norm(__hetero_hdc_get_handle(norms_buffer), __hetero_hdc_get_handle(classes));
 	// #endif
+#if INFER_NEEDS_CAST
+	// Representation-region boundary: convert the class prototypes and the
+	// encoded test hypervectors from the training element type to the
+	// inference element type. Executed once, at a program point fixed at
+	// compile time; its cost is included in this configuration's measurement.
+	{
+		void* cast_classes_dag = __hetero_launch(
+			(void*) cast_region_node<N_CLASS, Dhv>,
+			3,
+			classes_handle, classes_size,
+			__hetero_hdc_get_handle(cast_row_buffer), cast_row_size,
+			classes_infer_handle, classes_infer_size,
+			1,
+			classes_infer_handle, classes_infer_size);
+		__hetero_wait(cast_classes_dag);
+
+		void* cast_test_dag = __hetero_launch(
+			(void*) cast_region_node<N_TEST, Dhv>,
+			3,
+			encoded_test_hvs_handle, encoded_test_hvs_size,
+			__hetero_hdc_get_handle(cast_row_buffer), cast_row_size,
+			encoded_test_hvs_infer_handle, encoded_test_hvs_infer_size,
+			1,
+			encoded_test_hvs_infer_handle, encoded_test_hvs_infer_size);
+		__hetero_wait(cast_test_dag);
+	}
+	std::cout << "Converted to inference representation." << std::endl;
+#endif
+
 	std::cout << "Beginning Inference." << std::endl;
 
 	// FIXME, this currently launches N_TEST different tasks.
@@ -464,15 +562,26 @@ int main(int argc, char** argv) {
 	void* infernece_node_dag_handle = __hetero_launch(
 		(void*) inference_node<Dhv, N_CLASS, N_TEST>,
 		/* input buffers*/
-		5,
+		7,
+#if INFER_NEEDS_CAST
+		encoded_test_hvs_infer_handle,
+		encoded_test_hvs_infer_size,
+		classes_infer_handle,
+		classes_infer_size,
+#else
 		encoded_test_hvs_handle,
 		encoded_hv_size * N_TEST,
 		classes_handle,
 		classes_size,
-		__hetero_hdc_get_handle(scores_buffer),
-		scores_size,
-		__hetero_hdc_get_handle(norms_buffer),
-		norms_size,
+#endif
+		__hetero_hdc_get_handle(scores_infer_buffer),
+		scores_infer_size,
+		__hetero_hdc_get_handle(norms_infer_buffer),
+		norms_infer_size,
+		__hetero_hdc_get_handle(sign_q_buffer),
+		sign_hv_size,
+		__hetero_hdc_get_handle(sign_c_buffer),
+		sign_hv_size,
 		inference_labels,
 		sizeof(int) * N_TEST,
 		/* output buffers*/

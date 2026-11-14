@@ -15,6 +15,19 @@ root_dir_str = "/home/xrouth2/hdc/HDC-monorepo/applications/HD-HashTable"
 config_out_path = root_dir_str + "/config/config_out.json"
 config_in_path  = root_dir_str + "/config/config_in.json"
 
+# All element-type representations the backend can be asked for. Types that
+# miscompile or score poorly are deliberately left IN the space: the tuner
+# evaluates them, a failed build returns the penalty result and a low-quality
+# one is rejected by the QoS constraint, so "this type is a poor choice here"
+# is a search outcome rather than a hand-coded exclusion.
+#
+# Measured on HD-Classification/ISOLET: int8_t and int16_t return chance
+# accuracy (too few bits to absorb the encoding accumulation); int32_t, int64_t,
+# float and double all work. On HD-HashTable int16_t and double fail to build.
+DATA_TYPES = ["int8_t", "int16_t", "int32_t", "int64_t", "float", "double"]
+FLOAT_TYPES = {"float", "double"}
+
+
 # Global variables set by command-line arguments
 device_type = None
 no_approx_hint = False
@@ -72,7 +85,7 @@ def get_apx_descs(enable_redperf=True, enable_algchoice=True, redperf_end_only=F
     )
 
     apx_descs.append(
-        ApproxCustomInteger("DATA_TYPE", 1)         # 0=int, 1=float
+        ApproxCustomInteger("DATA_TYPE", len(DATA_TYPES) - 1)
     )
 
     apx_descs.append(
@@ -109,7 +122,7 @@ def eval_config(cfg):
 
     data_type_entry = next((item for item in pass_config_json if "DATA_TYPE" in item), None)
     data_type_raw = data_type_entry["DATA_TYPE"] if data_type_entry else 1
-    data_type = "float" if data_type_raw == 1 else "int"
+    data_type = DATA_TYPES[min(data_type_raw, len(DATA_TYPES) - 1)]
 
     binarize_entry = next((item for item in pass_config_json if "BINARIZE_BUCKETS" in item), None)
     binarize_buckets = binarize_entry["BINARIZE_BUCKETS"] if binarize_entry else 0
@@ -143,6 +156,7 @@ def eval_config(cfg):
     make_cmd = ["make", f"--directory={root_dir_str}",
         make_target, "-B",
         "HPVM_BUILD=release",
+        "APPROX_CONFIG=1",  # this config is intentional; see util/check_approx_config.py
         f"ENCODING_DIM={dhv}",
         f"STRIDE={stride}",
         f"QUERY_END={query_end}",

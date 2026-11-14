@@ -31,3 +31,38 @@ writing/
 **/__pycache__/
 HD-Graph-original/
 MicroHD/
+# Paper sources
+HDC_Approx_ASPLOS/
+
+# Tuning-database sidecars; the .db files themselves are ignored above, so
+# these carry no meaning on their own
+*.db.device
+*.db.searchspace
+*.db.orig-before-outlier-removal
+results/dbs/archive_*/
+
+# Stray run output
+nohup.out
+
+# The *.md rule above hides every markdown file; the reproduction guide
+# is the exception.
+!ARTIFACT.md
+
+# ---- Generated / machine-local artifacts (untracked 2026-11-13) ----
+*.log
+*.searchspace
+approx-tuner/build/
+*.egg-info/
+approx-tuner/misc/
+**/config_test_results.txt
+applications/HD-Classification/results/
+applications/HD-Sim-Classification/test
+applications/HD-Sim-Classification/.vscode/
+**/status.txt
+**/out.txt
+**/results.txt
+**/accuracy.txt
+results/pending_changes.txt
+
+# Tuning winners are run-specific output, not inputs
+applications/HD-Graph/config/best_redperf_*.json

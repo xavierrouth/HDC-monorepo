@@ -17,6 +17,19 @@ from gpu_power import *
 root_dir_str = "/home/xrouth2/hdc/HDC-monorepo/applications/HD-Clustering"
 VENV_PYTHON  = os.environ.get('HDC_VENV_PYTHON', "/home/xrouth2/hdc/HDC-monorepo/approx-tuner/venv/bin/python3.11")
 config_out_path = root_dir_str + "/config/config_out.json"
+
+# All element-type representations the backend can be asked for. Types that
+# miscompile or score poorly are deliberately left IN the space: the tuner
+# evaluates them, a failed build returns the penalty result and a low-quality
+# one is rejected by the QoS constraint, so "this type is a poor choice here"
+# is a search outcome rather than a hand-coded exclusion.
+#
+# Measured on HD-Classification/ISOLET: int8_t and int16_t return chance
+# accuracy (too few bits to absorb the encoding accumulation); int32_t, int64_t,
+# float and double all work. On HD-HashTable int16_t and double fail to build.
+DATA_TYPES = ["int8_t", "int16_t", "int32_t", "int64_t", "float", "double"]
+FLOAT_TYPES = {"float", "double"}
+
 config_in_path =   root_dir_str + "/config/config_in.json"
 
 DATASETS = {
@@ -86,7 +99,7 @@ def get_apx_descs(enable_redperf=True, enable_algchoice=True, redperf_end_only=F
     )
 
     apx_descs.append(
-        ApproxCustomInteger("DATA_TYPE", 2)
+        ApproxCustomInteger("DATA_TYPE", len(DATA_TYPES) - 1)
     )
 
     return apx_descs
@@ -105,12 +118,7 @@ def eval_config(cfg):
     train_iterations = train_entry["TRAIN_ITERATIONS"]
 
     entry = next((item for item in pass_config_json if "DATA_TYPE" in item), None)
-    data_type = entry["DATA_TYPE"]
-
-    if data_type == 1:
-        data_type = "float"
-    else:
-        data_type  = "int"
+    data_type = DATA_TYPES[min(entry["DATA_TYPE"], len(DATA_TYPES) - 1)]
 
     entry = next((item for item in pass_config_json if "HAMMING_DIST" in item), None)
     hamming_dist = entry["HAMMING_DIST"]
@@ -120,10 +128,11 @@ def eval_config(cfg):
     else:
         hamming_dist = "0"
 
-    # DATA_TYPE=int requires HAMMING_DIST=1 (cosine similarity is float-only).
-    # Skip this combination immediately rather than letting it fail at compile time.
-    if data_type == "int" and hamming_dist == "0":
-        print("Skipping invalid combination: DATA_TYPE=int requires HAMMING_DIST=1")
+    # Integer element types require HAMMING_DIST=1: cosine similarity is
+    # float-only, and the combination fails to compile rather than merely
+    # scoring poorly. Skip it here instead of paying for a doomed build.
+    if data_type not in FLOAT_TYPES and hamming_dist == "0":
+        print(f"Skipping invalid combination: DATA_TYPE={data_type} requires HAMMING_DIST=1")
         return {'time': float('inf'), "accuracy": 0.0, "energy": 0.0}
 
     pass_config_json = [item for item in pass_config_json if "intrinsic" in item]
@@ -138,6 +147,7 @@ def eval_config(cfg):
     make_target = "host-gpu-approx" if device_type == "gpu" else "host-cpu-approx"
     make_cmd = ["make", f"--directory={root_dir_str}",
         make_target, "-B",
+        "APPROX_CONFIG=1",  # this config is intentional; see util/check_approx_config.py
         f"ENCODING_DIM={dhv}",
         f"HAMMING_DIST={hamming_dist}",
         f"DATA_TYPE={data_type}",

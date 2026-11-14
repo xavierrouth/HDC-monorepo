@@ -31,10 +31,29 @@ SRC_ROOT := /home/xrouth2/hdc/HDC-monorepo/applications/HD-Classification
 CONFIG_IN_PATH ?= $(SRC_ROOT)/config/config_in.json
 CONFIG_OUT_PATH ?= $(SRC_ROOT)/config/config_out.json
 
+# Guard against silently applying a leftover config_in.json (written by a
+# previous tuning run) to a build that did not ask for approximation.
+# autotune.py passes APPROX_CONFIG=1; hand-run builds must opt in the same way
+# or reset the file. See applications/util/check_approx_config.py.
+APPROX_CONFIG ?= 0
+CHECK_APPROX_CONFIG := python3 $(SRC_ROOT)/../util/check_approx_config.py
+
 ENCODING_DIM ?= 4096
 DATA_TYPE ?= float
 HAMMING_DIST ?= 1
 BINARIZE_ENCODING ?= 1
+
+# Element type of the inference representation region. Defaults to the training
+# type, in which case the regions coincide and no conversion is emitted.
+INFER_DATA_TYPE ?= $(DATA_TYPE)
+# Derived: 1 only when the two regions genuinely differ. Kept as a preprocessor
+# flag so the conversion node is absent (not merely dead) when they match,
+# which keeps the HDC op numbering identical to a single-region build.
+ifeq ($(INFER_DATA_TYPE),$(DATA_TYPE))
+INFER_NEEDS_CAST := 0
+else
+INFER_NEEDS_CAST := 1
+endif
 N_FEAT ?= 617
 N_CLASS ?= 26
 N_SAMPLE ?= 6237
@@ -42,7 +61,7 @@ N_TEST ?= 1560
 N_FEAT_PAD ?= $(N_FEAT)
 NO_APPROX_HINT ?= 0
 
-APPROX_MACRO_DEFINES := -DENCODING_DIM=$(ENCODING_DIM) -DDATA_TYPE=$(DATA_TYPE) -DHAMMING_DIST=$(HAMMING_DIST) -DBINARIZE_ENCODING=$(BINARIZE_ENCODING) -DN_FEAT=$(N_FEAT) -DN_CLASS=$(N_CLASS) -DN_SAMPLE=$(N_SAMPLE) -DN_TEST=$(N_TEST) -DN_FEAT_PAD=$(N_FEAT_PAD) -DNO_APPROX_HINT=$(NO_APPROX_HINT)
+APPROX_MACRO_DEFINES := -DENCODING_DIM=$(ENCODING_DIM) -DDATA_TYPE=$(DATA_TYPE) -DHAMMING_DIST=$(HAMMING_DIST) -DBINARIZE_ENCODING=$(BINARIZE_ENCODING) -DN_FEAT=$(N_FEAT) -DN_CLASS=$(N_CLASS) -DN_SAMPLE=$(N_SAMPLE) -DN_TEST=$(N_TEST) -DN_FEAT_PAD=$(N_FEAT_PAD) -DNO_APPROX_HINT=$(NO_APPROX_HINT) -DINFER_DATA_TYPE=$(INFER_DATA_TYPE) -DINFER_NEEDS_CAST=$(INFER_NEEDS_CAST)
 BINARIZE_FLAGS :=
 ### ---------- SIMULATOR ---------------
 
@@ -151,6 +170,7 @@ build/hpvm.genhdc.cpu2.1.ll: build/hpvm.genhdc.cpu2.0.ll
 
 # Set HDC Approx Knobs
 build/hpvm.genhdc.cpu2.2.ll: build/hpvm.genhdc.cpu2.0.ll 
+	@$(CHECK_APPROX_CONFIG) $(CONFIG_IN_PATH) $(APPROX_CONFIG)
 	$(HPVM_BIN)/opt -enable-new-pm=0 $(HDC_LIBS) -hdc-set-approx-knobs --approx-config-path=$(CONFIG_IN_PATH) $< -S -o $@ 
 
 # Lower HDC Intrinsics
@@ -244,6 +264,7 @@ build/hpvm.genhdc.approx.gpu.1.ll: build/hpvm.genhdc.approx.gpu.0.ll
 
 # Set HDC Approx Knobs
 build/hpvm.genhdc.approx.gpu.2.ll: build/hpvm.genhdc.approx.gpu.0.ll
+	@$(CHECK_APPROX_CONFIG) $(CONFIG_IN_PATH) $(APPROX_CONFIG)
 	$(HPVM_BIN)/opt -enable-new-pm=0 $(HDC_LIBS) -hdc-set-approx-knobs --approx-config-path=$(CONFIG_IN_PATH) $< -S -o $@ 
 
 # Lower HDC Intrinsics

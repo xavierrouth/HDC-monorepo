@@ -1,11 +1,15 @@
 {
-    "Z11search_nodeIL+llvm.hpvm.hdc.cossim+1+hmhv+RedPerfBase": 0.0,
-    "Z11search_nodeIL+llvm.hpvm.hdc.cossim+1+hmhv+RedPerfStride": 1,
-    "Z11search_nodeIL+llvm.hpvm.hdc.cossim+1+hmhv+RedPerfExtent": 1.0,
+    "Z16search_root_nodeIL+llvm.hpvm.hdc.cossim+0+hmhv+RedPerfBase": 0.0,
+    "Z16search_root_nodeIL+llvm.hpvm.hdc.cossim+0+hmhv+RedPerfStride": 1,
+    "Z16search_root_nodeIL+llvm.hpvm.hdc.cossim+0+hmhv+RedPerfExtent": 1.0,
+    "Z11search_nodeIL+llvm.hpvm.hdc.cossim+0+hmhv+RedPerfBase": 0.0,
+    "Z11search_nodeIL+llvm.hpvm.hdc.cossim+0+hmhv+RedPerfStride": 1,
+    "Z11search_nodeIL+llvm.hpvm.hdc.cossim+0+hmhv+RedPerfExtent": 1.0,
     "GLOBAL_EncodingDim": 2048,
     "CUSTOM+TRAIN_ITERATIONS": 1,
     "CUSTOM+HAMMING_DIST": 0,
     "CUSTOM+BINARIZE": 0,
     "CUSTOM+RHO_SHIFT": 0,
-    "CUSTOM+POLARIZE": 0
+    "CUSTOM+POLARIZE": 0,
+    "CUSTOM+DATA_TYPE": 4
 }

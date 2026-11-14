@@ -97,7 +97,17 @@ APPS = {
         "db_prefix":       "hd_graph",
         "label_prefix":    "RelHD",
         "base_flags":      ["--num-runs", "3"],
-        "collect_approx_make_vars": [],
+        # Pin every macro that affects which HDC ops exist, so config_out.json is
+        # generated against the canonical build rather than the Makefile's
+        # defaults. Leaving this empty previously meant "don't regenerate" and,
+        # once that was fixed, would have meant "regenerate against defaults" --
+        # which enables BINARIZE/RHO_SHIFT/POLARIZE and shifts the op indices
+        # from 0 to 3, silently misaligning every knob in the config.
+        "collect_approx_make_vars": [
+            "HPVM_BUILD=release",
+            "ENCODING_DIM=2048", "HAMMING_DIST=0",
+            "BINARIZE=0", "RHO_SHIFT=0", "POLARIZE=0",
+        ],
         # HD-Graph DFG.hpp has no __hetero_hdc_no_approx calls, so the +hint
         # condition is a no-op. Skip it; only 3 conditions are meaningful.
         "series": [
@@ -155,10 +165,23 @@ SERIES = [
 # Tuning helpers
 # ===========================================================================
 
-def regenerate_config_out(app_dir: str, make_vars: list[str], no_approx_hint: bool) -> None:
-    """Re-run `make collect-approx` so config_out.json matches the series' hint setting."""
-    if not make_vars:
-        return  # app doesn't need regeneration (e.g. classification)
+def regenerate_config_out(app_dir: str, make_vars: list[str], no_approx_hint: bool,
+                          skip: bool = False) -> None:
+    """Re-run `make collect-approx` so config_out.json matches the series' hint setting.
+
+    Regeneration is the default and an app opts out explicitly via
+    `skip_config_regen: True`. It used to be skipped whenever
+    `collect_approx_make_vars` was falsy, which silently conflated "this app
+    needs no extra make variables" with "do not regenerate at all". HD-Graph
+    meant the former and got the latter, so every one of its tuning runs used a
+    stale checked-in config_out.json that listed 1 of its 2 perforable
+    operators -- understating its search space by ~23 orders of magnitude.
+    An empty list now means what it reads as: regenerate, passing no extra vars.
+    """
+    if skip:
+        print("  Skipping config_out.json regeneration (skip_config_regen=True); "
+              "using the checked-in file.")
+        return
     hint_var = ["NO_APPROX_HINT=1"] if no_approx_hint else ["NO_APPROX_HINT=0"]
     cmd = ["make", f"--directory={app_dir}", "collect-approx", "-B"] + make_vars + hint_var
     print(f"  Regenerating config_out.json (NO_APPROX_HINT={'1' if no_approx_hint else '0'})...")
@@ -222,6 +245,7 @@ def run_app(app_name: str, device: str, stop_after: int, timestamp: str,
     db_prefix       = cfg["db_prefix"]
     acc_target      = accuracy_target_override if accuracy_target_override is not None else cfg["accuracy_target"]
     make_vars       = cfg.get("collect_approx_make_vars", [])
+    skip_regen      = cfg.get("skip_config_regen", False)
 
     print(f"\n{'#'*80}")
     print(f"  Application: {prefix}")
@@ -236,7 +260,7 @@ def run_app(app_name: str, device: str, stop_after: int, timestamp: str,
 
     results = {}
     for extra_flags, no_approx_hint, db_suffix, label, _, _ in series:
-        regenerate_config_out(app_dir, make_vars, no_approx_hint)
+        regenerate_config_out(app_dir, make_vars, no_approx_hint, skip=skip_regen)
         db_path = os.path.join(DB_DIR, f"{db_prefix}_{db_suffix}_{timestamp}.db")
         ss = capturesearch_space_size(app_dir, autotune_script, base_flags, extra_flags)
         print(f"Search space ({label}): {ss}")
@@ -782,6 +806,10 @@ def main() -> int:
     parser.add_argument("--series-filter", type=str, default=None, metavar="SUFFIXES",
                         help="Comma-separated db_suffixes to run (e.g. 'redperf_endonly,redperf_off'). "
                              "Default: run all series for the app.")
+    parser.add_argument("--db-timestamp", type=str, default=None, metavar="STAMP",
+                        help="Reuse an existing DB timestamp (e.g. '20260816_224322') instead of "
+                             "minting a new one. Use with --series-filter to rerun only some "
+                             "series into an existing set, keeping the others intact.")
     parser.add_argument("--print-best-configs", action="store_true",
                         help="Print best-config summary (speedup, accuracy, dominant knobs) "
                              "for the end-only condition across all apps and both GPU/CPU")
@@ -915,7 +943,9 @@ def main() -> int:
     print(f"Budget:     {args.stop_after // 3600}h per run × {n_runs} runs = ~{total_h}h total")
     print(f"DBs:        {DB_DIR}/\n")
 
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = args.db_timestamp or datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    if args.db_timestamp:
+        print(f"Reusing DB timestamp: {timestamp}")
     tune_results = {}
 
     series_filter = args.series_filter.split(",") if args.series_filter else None

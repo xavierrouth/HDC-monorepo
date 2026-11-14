@@ -1,1 +1,0 @@
-[{"parent_func": "Z4nodePu11matrix_typeIL", "intrinsic": "llvm.hpvm.hdc.cossim", "number": 0, "op_type": "hmhv", "approximations": [{"red_perf": {"base": 0.26761393878516004, "stride": 0.09422810561569601, "length": 0.2928737453866111}}, {"alg_choice": "llvm.hpvm.hdc.cossim"}]}]

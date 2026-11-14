@@ -1,10 +1,10 @@
 {
-    "Z13training_nodeIL+llvm.hpvm.hdc.cossim+2+hmhv+RedPerfBase": 0.0,
-    "Z13training_nodeIL+llvm.hpvm.hdc.cossim+2+hmhv+RedPerfStride": 1,
-    "Z13training_nodeIL+llvm.hpvm.hdc.cossim+2+hmhv+RedPerfExtent": 1.0,
-    "Z14inference_nodeIL+llvm.hpvm.hdc.cossim+2+hmhv+RedPerfBase": 0.0,
-    "Z14inference_nodeIL+llvm.hpvm.hdc.cossim+2+hmhv+RedPerfStride": 1,
-    "Z14inference_nodeIL+llvm.hpvm.hdc.cossim+2+hmhv+RedPerfExtent": 1.0,
+    "Z13training_nodeIL+llvm.hpvm.hdc.cossim+0+hmhv+RedPerfBase": 0.0,
+    "Z13training_nodeIL+llvm.hpvm.hdc.cossim+0+hmhv+RedPerfStride": 1,
+    "Z13training_nodeIL+llvm.hpvm.hdc.cossim+0+hmhv+RedPerfExtent": 1.0,
+    "Z14inference_nodeIL+llvm.hpvm.hdc.cossim+0+hmhv+RedPerfBase": 0.0,
+    "Z14inference_nodeIL+llvm.hpvm.hdc.cossim+0+hmhv+RedPerfStride": 1,
+    "Z14inference_nodeIL+llvm.hpvm.hdc.cossim+0+hmhv+RedPerfExtent": 1.0,
     "GLOBAL_EncodingDim": 8192,
     "CUSTOM+N_LEVELS": 128,
     "CUSTOM+ENCODER_TYPE": 0

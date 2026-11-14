@@ -59,12 +59,26 @@ class OpenTunerHarness(MeasurementInterface):
                         else:
                             print(f"Warning: Invalid format in {self.seed_config_path}, expected dict or list")
                             return []
-                        # Filter each config to only keys valid for this manipulator,
-                        # so that seeds written for a different knob set don't get rejected.
-                        valid_keys = {p.name for p in self.manipulator().params}
-                        filtered = [{k: v for k, v in cfg.items() if k in valid_keys}
-                                    for cfg in configs]
-                        filtered = [cfg for cfg in filtered if cfg]
+                        # Reconcile each seed against this manipulator's knob set.
+                        # Keys the manipulator doesn't have are dropped; keys it has
+                        # but the seed lacks are filled from the manipulator defaults.
+                        # Without the fill, OpenTuner KeyErrors while hashing the seed
+                        # whenever config_out.json exposes an op the seed predates.
+                        manip = self.manipulator()
+                        valid_keys = {p.name for p in manip.params}
+                        filtered = []
+                        for cfg in configs:
+                            known = {k: v for k, v in cfg.items() if k in valid_keys}
+                            if not known:
+                                continue
+                            missing = valid_keys - set(known)
+                            if missing:
+                                print(f"Note: seed missing {len(missing)} knob(s); "
+                                      f"using manipulator defaults for: "
+                                      f"{', '.join(sorted(missing))}")
+                            merged = manip.seed_config()
+                            merged.update(known)
+                            filtered.append(merged)
                         return filtered
                 else:
                     print(f"Warning: Seed config file not found: {self.seed_config_path}")

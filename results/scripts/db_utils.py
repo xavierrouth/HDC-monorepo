@@ -157,6 +157,32 @@ def find_best_transfer_db(db_prefix: str, dataset: str,
 # Result queries
 # ---------------------------------------------------------------------------
 
+# Every reported number is taken from the first TRUNCATE_HOURS of a run, so that
+# series recorded with a longer budget (HD-Clustering at 5h, HD-HashTable GPU at
+# 5h, HD-Classification GPU's ON series at 4.9h) are comparable with the 3h ones
+# and consistent with the "3-hour tuning budget" the figures claim. Set to None
+# to use each database in full.
+TRUNCATE_HOURS: float | None = 3.0
+
+
+def _cutoff(conn) -> str | None:
+    """Timestamp TRUNCATE_HOURS after a run's first result, in the DB's own format."""
+    if TRUNCATE_HOURS is None:
+        return None
+    row = conn.execute(
+        "SELECT MIN(collection_date) FROM result WHERE collection_date IS NOT NULL"
+    ).fetchone()
+    if not row or not row[0]:
+        return None
+    import datetime
+    start = datetime.datetime.fromisoformat(row[0])
+    end = start + datetime.timedelta(hours=TRUNCATE_HOURS)
+    # Match the stored format exactly: a space separator, not the 'T' that
+    # isoformat() emits -- string comparison against 'T' silently matches
+    # everything, because ' ' sorts below 'T'.
+    return end.strftime("%Y-%m-%d %H:%M:%S.%f")
+
+
 def seed_time(db_path: str) -> float | None:
     """Return the execution time of the first evaluated (seed) config."""
     conn = sqlite3.connect(db_path)
@@ -170,10 +196,18 @@ def seed_time(db_path: str) -> float | None:
 def load_times(db_path: str, accuracy_cutoff: float) -> np.ndarray:
     """Return array of times for valid configs (accuracy >= cutoff, time < 1e30)."""
     conn = sqlite3.connect(db_path)
-    rows = conn.execute(
-        "SELECT time FROM result WHERE accuracy >= ? AND time < 1e30",
-        (accuracy_cutoff,),
-    ).fetchall()
+    cut = _cutoff(conn)
+    if cut is None:
+        rows = conn.execute(
+            "SELECT time FROM result WHERE accuracy >= ? AND time < 1e30",
+            (accuracy_cutoff,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT time FROM result WHERE accuracy >= ? AND time < 1e30 "
+            "AND (collection_date IS NULL OR collection_date <= ?)",
+            (accuracy_cutoff, cut),
+        ).fetchall()
     conn.close()
     return np.array([r[0] for r in rows], dtype=float)
 
@@ -190,10 +224,11 @@ def extract_top_configs(db_path: str, accuracy_target: float,
             JOIN desired_result dr ON r.id = dr.result_id
             JOIN configuration c  ON dr.configuration_id = c.id
             WHERE r.accuracy >= ? AND r.time < 1e30
+              AND (r.collection_date IS NULL OR r.collection_date <= ?)
             ORDER BY r.time ASC
             LIMIT ?
             """,
-            (accuracy_target, k),
+            (accuracy_target, _cutoff(conn) or "9999-12-31 23:59:59.999999", k),
         ).fetchall()
     finally:
         conn.close()

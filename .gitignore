@@ -66,3 +66,10 @@ results/pending_changes.txt
 
 # Tuning winners are run-specific output, not inputs
 applications/HD-Graph/config/best_redperf_*.json
+
+# Raw MNIST idx files: unreferenced (the pipeline reads the preprocessed .bin
+# datasets) and re-downloadable by torchvision. Three identical copies existed.
+**/*idx3-ubyte
+**/*idx1-ubyte
+**/*idx3-ubyte.gz
+**/*idx1-ubyte.gz
